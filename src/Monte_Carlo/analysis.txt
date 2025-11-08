@@ -1,0 +1,7 @@
+Monte Carlo is a method of running a lot of random trials, modeling uncertain probabilities, to see what could possibly happen in the future. 
+We want to use historical data in order to create a precedent for the simulations, and use this in simulations, deriving certain qualities like mean, standard deviation, and total. 
+With this we can create a sort of baseline for our simulations, and apply other qualities, like mean, to a formula to induce randomness in our simulations. 
+We then want to run 10,000 simulations of randomness, within the baseline, in order to see the outcomes. These can vary from growth, decline, and can give us an average sense of what to expect in the real world. 
+After all of these tests, we should return a normal distribution curve, letting us know what our quantile ranges and their respective data are. What is average, what is worst case, what is best case.
+For our monte carlo application we will be using the Geometric Brownian Motion (GBM), where in simple terms the formula follows:
+Tomorrow's Price = Current Price * e^(drift+random value/spike)
