@@ -43,6 +43,7 @@ finally:
 with psycopg.connect(f"hostaddr={PSQL_HOST_ADDR} port={PSQL_PORT} dbname={DB_NAME} user={PSQL_USERNAME} password={PSQL_PASSWORD} connect_timeout={CONNECTION_TIMEOUT}") as conn:
     with conn.cursor() as cur:
         #create the stock_data table if it does not exist...
+        # Data Model: stock_data table with all OHLCV data + adj_close
         cur.execute("""
             CREATE TABLE IF NOT EXISTS stock_data (
                 id SERIAL PRIMARY KEY,
@@ -52,15 +53,31 @@ with psycopg.connect(f"hostaddr={PSQL_HOST_ADDR} port={PSQL_PORT} dbname={DB_NAM
                 high float,
                 low float,
                 close float,
+                adj_close float,
                 volume integer);
         """)
+        
+        # Add adj_close column if it doesn't exist (for existing databases)
+        cur.execute("""
+            DO $$ 
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_name='stock_data' AND column_name='adj_close'
+                ) THEN
+                    ALTER TABLE stock_data ADD COLUMN adj_close float;
+                END IF;
+            END $$;
+        """)
+        
         #create the simulation table if it does not exist....
+        # Data Model: simulation table with year instead of date
         cur.execute("""
             CREATE TABLE IF NOT EXISTS simulation (
                 id integer NOT NULL,
                 simulation_id SERIAL PRIMARY KEY,
                 ticker varchar(10) NOT NULL,
-                date date NOT NULL,
+                year integer NOT NULL,
                 starting_value float,
                 ending_value float,
                 annual_return float,
@@ -68,6 +85,25 @@ with psycopg.connect(f"hostaddr={PSQL_HOST_ADDR} port={PSQL_PORT} dbname={DB_NAM
                 volatility float,
                 probability float,
                 FOREIGN KEY (id) REFERENCES stock_data(id) ON UPDATE CASCADE ON DELETE CASCADE);
+        """)
+        
+        # Add year column if it doesn't exist (migration from date to year)
+        cur.execute("""
+            DO $$ 
+            BEGIN
+                IF EXISTS (
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_name='simulation' AND column_name='date'
+                ) AND NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_name='simulation' AND column_name='year'
+                ) THEN
+                    ALTER TABLE simulation ADD COLUMN year integer;
+                    UPDATE simulation SET year = EXTRACT(YEAR FROM date) WHERE year IS NULL;
+                    ALTER TABLE simulation ALTER COLUMN year SET NOT NULL;
+                    ALTER TABLE simulation DROP COLUMN date;
+                END IF;
+            END $$;
         """)
 
         #lets put insertion query here then we can print it with the code below

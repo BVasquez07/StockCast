@@ -2,4 +2,8 @@ pandas
 python-dotenv
 requests
 psycopg[binary]
+yfinance
+numpy
+pytest
+pytest-cov
 
