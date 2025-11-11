@@ -11,6 +11,8 @@ because that root main will be the entry point for the entire application!
 
 """
 
+#this file will need to recieve the API keys and the db credentials from the config file which will be passed down from the root main.py file
+
 
 
 def compile_ETL_data(api_1='api_1', api_2='api_2', source: str = 'yfinance') -> Dict[str, pd.DataFrame]:

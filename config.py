@@ -7,12 +7,11 @@ try:
 except OSError:
     with open('.env', 'w') as f:
         f.write("FINNHUB_API_KEY=\n")
-        f.write("YAHOOFIN_API_KEY=\n")
-        f.write("PSQL_USERNAME='brandon'\n")
-        f.write("PSQL_PASSWORD=''\n")
+        f.write("PSQL_USERNAME='postgres'\n")
+        f.write("PSQL_PASSWORD='0000'\n")
         f.write("PSQL_HOST_ADDR='127.0.0.1'\n")
-        f.write("PSQL_PORT='5432'\n")
-        f.write("DB_NAME='test_db'\n")
+        f.write("PSQL_PORT='5430'\n")
+        f.write("DB_NAME='monte_sim_stock_data'\n")
         f.write("CONNECTION_TIMEOUT=10\n")
 finally:
     print('.env file checked for existence!')
