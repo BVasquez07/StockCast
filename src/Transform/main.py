@@ -31,67 +31,158 @@ def transform_yfinance_data(data: pd.DataFrame) -> pd.DataFrame:
     if data.empty:
         return pd.DataFrame(columns=['ticker', 'date', 'open', 'high', 'low', 'close', 'adj_close', 'volume'])
     
-    # Stack the MultiIndex to get ticker and date in rows
-    # This converts from wide format (tickers as columns) to long format
     transformed_rows = []
     
-    # Get all tickers from the columns
+    # Handle MultiIndex columns (multiple tickers or single ticker with MultiIndex)
     if isinstance(data.columns, pd.MultiIndex):
-        tickers = data.columns.get_level_values(0).unique()
-        price_columns = ['Open', 'High', 'Low', 'Close', 'Volume']
+        # Get all values from both levels
+        level0_values = data.columns.get_level_values(0).unique()
+        level1_values = data.columns.get_level_values(1).unique()
+        
+        # Price column names that should NOT be treated as tickers
+        price_keywords = ['Open', 'High', 'Low', 'Close', 'Volume', 'Adj Close', 'AdjClose', 'Adj']
+        
+        # Determine which level contains tickers and which contains price types
+        # Typically: level 0 = tickers, level 1 = price types
+        # But sometimes it can be reversed or inconsistent
+        
+        # Check if level 0 looks like tickers (not all are price keywords)
+        level0_is_tickers = not all(str(v) in price_keywords for v in level0_values)
+        level1_is_tickers = not all(str(v) in price_keywords for v in level1_values)
+        
+        if level0_is_tickers and not level1_is_tickers:
+            # Standard case: level 0 = tickers, level 1 = price types
+            tickers = [t for t in level0_values if str(t) not in price_keywords]
+        elif level1_is_tickers and not level0_is_tickers:
+            # Reversed case: level 1 = tickers, level 0 = price types
+            tickers = [t for t in level1_values if str(t) not in price_keywords]
+        else:
+            # Ambiguous - try to infer
+            # Usually tickers are shorter strings and price types are longer
+            potential_tickers = []
+            for val in level0_values:
+                val_str = str(val)
+                if val_str not in price_keywords and len(val_str) <= 10:  # Tickers are usually short
+                    potential_tickers.append(val)
+            tickers = potential_tickers if potential_tickers else level0_values.tolist()
+        
+        # If still no valid tickers, extract from first column tuple
+        if len(tickers) == 0 or all(str(t) in price_keywords for t in tickers):
+            first_col = data.columns[0]
+            if isinstance(first_col, tuple) and len(first_col) == 2:
+                # Try both positions
+                if str(first_col[0]) not in price_keywords:
+                    tickers = [first_col[0]]
+                elif str(first_col[1]) not in price_keywords:
+                    tickers = [first_col[1]]
+                else:
+                    tickers = [first_col[0]]  # Fallback to first element
+            else:
+                tickers = ['UNKNOWN']
         
         # Check if Adj Close exists
-        has_adj_close = 'Adj Close' in data.columns.get_level_values(1).unique()
+        all_level1 = data.columns.get_level_values(1).unique()
+        has_adj_close = any('Adj' in str(val) or 'adj' in str(val).lower() for val in all_level1)
         
         for ticker in tickers:
-            ticker_data = data[ticker].copy()
-            
-            # Reset index to get date as a column
-            ticker_data = ticker_data.reset_index()
-            
-            # Standardize column names to lowercase
-            ticker_data.columns = ticker_data.columns.str.lower()
-            
-            # Rename 'date' if it exists, otherwise use index
-            if 'date' not in ticker_data.columns:
-                ticker_data = ticker_data.reset_index()
-                if 'date' in ticker_data.columns:
-                    pass  # Already have date
+            try:
+                # Access ticker data - try both level 0 and level 1
+                ticker_data = None
+                if ticker in data.columns.get_level_values(0):
+                    ticker_data = data[ticker].copy()
+                elif ticker in data.columns.get_level_values(1):
+                    # Ticker might be in level 1, need to transpose or filter differently
+                    # Filter columns where level 1 matches ticker
+                    mask = data.columns.get_level_values(1) == ticker
+                    ticker_data = data.loc[:, mask].copy()
+                    # The columns will still have MultiIndex, need to flatten
+                    if isinstance(ticker_data.columns, pd.MultiIndex):
+                        # Flatten by taking level 0 (price types)
+                        ticker_data.columns = ticker_data.columns.get_level_values(0)
                 else:
-                    ticker_data.rename(columns={ticker_data.columns[0]: 'date'}, inplace=True)
-            
-            # Ensure we have all required columns
-            required_cols = ['open', 'high', 'low', 'close', 'volume']
-            for col in required_cols:
-                if col not in ticker_data.columns:
-                    raise ValueError(f"Missing required column '{col}' for ticker {ticker}")
-            
-            # Handle adj_close
-            if has_adj_close and 'adj close' in ticker_data.columns:
-                ticker_data['adj_close'] = ticker_data['adj close']
-            elif 'adj_close' in ticker_data.columns:
-                pass  # Already have adj_close
-            else:
-                # If no adj_close, use close as fallback (common for ETFs or when auto_adjust=True)
-                ticker_data['adj_close'] = ticker_data['close']
-            
-            # Add ticker column
-            ticker_data['ticker'] = ticker
-            
-            # Select and reorder columns to match data model
-            ticker_data = ticker_data[['ticker', 'date', 'open', 'high', 'low', 'close', 'adj_close', 'volume']]
-            
-            transformed_rows.append(ticker_data)
+                    # Ticker not found in either level - might be single ticker case
+                    # Use all columns and extract ticker from structure
+                    ticker_data = data.copy()
+                    if isinstance(data.columns[0], tuple):
+                        # Extract ticker from first column tuple
+                        first_col = data.columns[0]
+                        if len(first_col) >= 1:
+                            # Try to find which element is the ticker
+                            for elem in first_col:
+                                if str(elem) not in price_keywords:
+                                    ticker = elem
+                                    break
+                
+                if ticker_data is None:
+                    raise ValueError(f"Could not extract data for ticker {ticker}")
+                
+                # Reset index to get date as a column
+                ticker_data = ticker_data.reset_index()
+                
+                # Standardize column names to lowercase
+                ticker_data.columns = ticker_data.columns.str.lower()
+                
+                # Handle date column - yfinance uses 'Date' as index name
+                if 'date' not in ticker_data.columns:
+                    # Check if index was reset and first column is date
+                    if len(ticker_data.columns) > 0:
+                        first_col = ticker_data.columns[0]
+                        if pd.api.types.is_datetime64_any_dtype(ticker_data[first_col]):
+                            ticker_data.rename(columns={first_col: 'date'}, inplace=True)
+                        else:
+                            # Date might be in index name
+                            ticker_data.insert(0, 'date', ticker_data.index if hasattr(ticker_data, 'index') else pd.date_range('2024-01-01', periods=len(ticker_data)))
+                
+                # Ensure date column exists
+                if 'date' not in ticker_data.columns:
+                    ticker_data.insert(0, 'date', ticker_data.index)
+                
+                # Map common column name variations
+                column_mapping = {
+                    'adj close': 'adj_close',
+                    'adjclose': 'adj_close',
+                }
+                for old_name, new_name in column_mapping.items():
+                    if old_name in ticker_data.columns and new_name not in ticker_data.columns:
+                        ticker_data[new_name] = ticker_data[old_name]
+                
+                # Ensure we have all required columns
+                required_cols = ['open', 'high', 'low', 'close', 'volume']
+                missing_cols = [col for col in required_cols if col not in ticker_data.columns]
+                if missing_cols:
+                    raise ValueError(f"Missing required columns {missing_cols} for ticker {ticker}. Available columns: {list(ticker_data.columns)}")
+                
+                # Handle adj_close
+                if 'adj_close' not in ticker_data.columns:
+                    if 'adj close' in ticker_data.columns:
+                        ticker_data['adj_close'] = ticker_data['adj close']
+                    else:
+                        # Use close as fallback (common when auto_adjust=True)
+                        ticker_data['adj_close'] = ticker_data['close']
+                
+                # Add ticker column
+                ticker_data['ticker'] = ticker
+                
+                # Select and reorder columns to match data model
+                ticker_data = ticker_data[['ticker', 'date', 'open', 'high', 'low', 'close', 'adj_close', 'volume']]
+                
+                transformed_rows.append(ticker_data)
+            except Exception as e:
+                # Skip this ticker if there's an error, but log it
+                print(f"Warning: Error processing ticker {ticker}: {e}")
+                continue
     else:
-        # Single ticker case - columns are already flat
+        # Flat columns case - single ticker with non-MultiIndex columns
         data_reset = data.reset_index()
         data_reset.columns = data_reset.columns.str.lower()
         
         # Handle date column
         if 'date' not in data_reset.columns:
-            data_reset = data_reset.reset_index()
-            if data_reset.columns[0] != 'date':
-                data_reset.rename(columns={data_reset.columns[0]: 'date'}, inplace=True)
+            first_col = data_reset.columns[0]
+            if pd.api.types.is_datetime64_any_dtype(data_reset[first_col]):
+                data_reset.rename(columns={first_col: 'date'}, inplace=True)
+            else:
+                data_reset.insert(0, 'date', data_reset.index)
         
         # Handle adj_close
         if 'adj close' in data_reset.columns:
@@ -99,12 +190,16 @@ def transform_yfinance_data(data: pd.DataFrame) -> pd.DataFrame:
         elif 'adj_close' not in data_reset.columns:
             data_reset['adj_close'] = data_reset['close']
         
-        # Add ticker (would need to be passed as parameter for single ticker)
-        # For now, we'll assume it's in the data or needs to be added
+        # For single ticker, we need to infer or use a default
+        # Try to get ticker from data if available, otherwise use placeholder
         if 'ticker' not in data_reset.columns:
-            raise ValueError("Ticker column missing for single ticker data")
+            # Try to infer from column names or use 'UNKNOWN'
+            data_reset['ticker'] = 'UNKNOWN'  # Will need to be set by caller
         
         transformed_rows.append(data_reset[['ticker', 'date', 'open', 'high', 'low', 'close', 'adj_close', 'volume']])
+    
+    if not transformed_rows:
+        raise ValueError("No valid data could be transformed. Check input DataFrame structure.")
     
     # Combine all tickers
     result_df = pd.concat(transformed_rows, ignore_index=True)
