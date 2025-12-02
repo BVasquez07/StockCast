@@ -5,20 +5,12 @@ from src.db.connection import psql_connect_and_setup
 
 
 #this file will be the entry point for the entire application!
+#here we need to define the tickers we will use so that we can just pass them into the pipeline.
 
 
 def main() -> None:
-    print(api_keys['finnhub'])
-    etl_data = compile_ETL_data(api_keys["finnhub"], api_keys["yahoo_fin"])
-    psql_connect_and_setup(
-        db_host_addr=db_credentials['host'], 
-        db_port=db_credentials['port'], 
-        db_name=db_credentials['database'], 
-        db_user=db_credentials['user'], 
-        db_password=db_credentials['password'], 
-        db_timeout=db_credentials['timeout'])
-
-    print("ETL Data Compiled:", etl_data)
+    etl_data = compile_ETL_data(api_keys["finnhub"], db_credentials, tickers=['META', 'TSLA'], time_period='ytd')
+    print("ETL Data Compiled:", etl_data.head())
 
 
 

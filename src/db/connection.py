@@ -1,21 +1,8 @@
 import psycopg #https://www.psycopg.org/psycopg3/docs/basic/usage.html
 """
 TODO:
-- implement threading or async to speed up the connection and insertion process
- -> threading in psycopg3 would usually be done with connection pool!
- -> might not be
 - error handling
     -> timeout handling
-- I think most if not all of the processing can be done in one file
-    - Otherwise pass the connection object around
-
-Processing is as follows:
-
--> Transformed and simulated data is ready 
-    -> check if db & tables ready
-        -> if not create them
-    -> connect to the db
-    -> insert the data into the appropriate tables
 """
 
 def psql_connect_and_setup(db_host_addr: str, db_port: str, db_name: str, db_user: str, db_password: str, db_timeout: int) -> None: #cool thing to look into is how to make use of the *args and **kwargs in python functions
@@ -50,7 +37,8 @@ def psql_connect_and_setup(db_host_addr: str, db_port: str, db_name: str, db_use
                     low float,
                     close float,
                     adj_close float,
-                    volume integer);
+                    volume integer,
+                    UNIQUE (ticker, date));
             """)
             
             
@@ -58,7 +46,6 @@ def psql_connect_and_setup(db_host_addr: str, db_port: str, db_name: str, db_use
             # Data Model: simulation table with year instead of date
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS simulation (
-                    id integer NOT NULL,
                     simulation_id SERIAL PRIMARY KEY,
                     ticker varchar(10) NOT NULL,
                     year integer NOT NULL,
@@ -67,8 +54,7 @@ def psql_connect_and_setup(db_host_addr: str, db_port: str, db_name: str, db_use
                     annual_return float,
                     cumulative_return float,
                     volatility float,
-                    probability float,
-                    FOREIGN KEY (id) REFERENCES stock_data(id) ON UPDATE CASCADE ON DELETE CASCADE);
+                    probability float);
             """)
 
             #lets put insertion query here then we can print it with the code below
