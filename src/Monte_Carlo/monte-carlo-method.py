@@ -3,7 +3,7 @@ import numpy as np
 
 # Monte Carlo simulation with annual aggregation using previously cleaned DataFrame
 # Can pass any list of tickers, portfolio value, and years
-def run_monte_carlo_from_df(
+def run_monte_carlo(
     df: pd.DataFrame,
     tickers: list[str],
     portfolio_value: float = 250000,
