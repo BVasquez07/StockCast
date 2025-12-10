@@ -1,69 +1,113 @@
-import yfinance as yf
 import pandas as pd
 import numpy as np
 
-#probability column might need some work
-
-#can pass any list of strings as tickers.
-
-def run_monte_carlo(
+# Monte Carlo simulation with annual aggregation using previously cleaned DataFrame
+# Can pass any list of tickers, portfolio value, and years
+def run_monte_carlo_from_df(
+    df: pd.DataFrame,
     tickers: list[str],
     portfolio_value: float = 250000,
     years: int = 10,
     num_simulations: int = 1000,
-    start_date: str = "2014-01-01",
-    end_date: str = "2024-12-31"
-):
+    seed: int = None
+) -> pd.DataFrame:
     """
-    Monte Carlo simulation returning a DataFrame with integer IDs.
+    Monte Carlo simulation using pre-cleaned stock data from Transform module.
     Columns: id, ticker, simulation_id, year, starting_value, ending_value,
-             annual_return, cumulative_return, volatility, and probability
+             annual_return, cumulative_return, volatility, probability
     """
+    
+    if seed is not None:
+        np.random.seed(seed)
 
-    # Downloading historical adjusted close prices using start and end dates (10 year range)
-    price_data = yf.download(tickers, start=start_date, end=end_date)["Adj Close"].dropna()
-
-    # Compute daily log returns
-    daily_returns = np.log(price_data / price_data.shift(1)).dropna()
-
-    # Mean and covariance (allows us to preserve historical correlation) of daily returns
-    mean_returns = daily_returns.mean()
-    cov_matrix = daily_returns.cov()
-    num_days = years * 252  # simulated trading days
+    # Ensure dataframe has required columns
+    required_cols = ['ticker', 'date', 'adj_close']
+    for col in required_cols:
+        if col not in df.columns:
+            raise ValueError(f"DataFrame must contain '{col}' column")
 
     results = []
-    row_id = 0  # sequential integer ID
+    row_id = 0
+    trading_days_per_year = 252
 
     for sim in range(num_simulations):
-        # Sample daily returns for all tickers
-        simulated = np.random.multivariate_normal(
-            mean_returns, cov_matrix, num_days
-        )
+        for ticker in tickers:
+            # Select ticker's historical prices
+            ticker_data = df[df['ticker'] == ticker].sort_values('date')
+            prices = ticker_data['adj_close'].values
+            if len(prices) < 2:
+                continue  # skip tickers with insufficient data
 
-        for i, ticker in enumerate(tickers):
+            # Compute daily log returns from cleaned prices
+            daily_returns = np.log(prices[1:] / prices[:-1])
+
+            # Mean and covariance for univariate simulation
+            mean_return = daily_returns.mean()
+            std_return = daily_returns.std()
+
+            # Simulate daily returns for 'years'
+            total_days = years * trading_days_per_year
+            simulated_returns = np.random.normal(loc=mean_return, scale=std_return, size=total_days)
+            growth_factors = np.exp(simulated_returns)
+            
             starting_val = portfolio_value / len(tickers)
-            ticker_returns = simulated[:, i]
-            growth_factors = np.exp(ticker_returns)
-            ending_val = starting_val * growth_factors.prod()
 
-            annual_return = (ending_val / starting_val) ** (1 / years) - 1
-            cumulative_return = (ending_val / starting_val) - 1
-            volatility = np.std(ticker_returns) * np.sqrt(252)
-            probability = 1 / num_simulations  # placeholder for aggregation
+            # Track values per year
+            for year in range(1, years + 1):
+                start_idx = (year - 1) * trading_days_per_year
+                end_idx = year * trading_days_per_year
+                yearly_growth = growth_factors[start_idx:end_idx].prod()
+                ending_val = starting_val * yearly_growth
 
-            results.append({
-                "id": row_id,
-                "ticker": ticker,
-                "simulation_id": sim,
-                "year": years,
-                "starting_value": starting_val,
-                "ending_value": ending_val,
-                "annual_return": annual_return,
-                "cumulative_return": cumulative_return,
-                "volatility": volatility,
-                "probability": probability
-            })
+                annual_return = (ending_val / starting_val) ** (1 / year) - 1
+                cumulative_return = (ending_val / starting_val) - 1
+                volatility = np.std(simulated_returns[start_idx:end_idx]) * np.sqrt(trading_days_per_year)
+                probability = 1.0 if ending_val > starting_val else 0.0
 
-            row_id += 1  # increment ID
+                results.append({
+                    "id": row_id,
+                    "ticker": ticker,
+                    "simulation_id": sim,
+                    "year": year,
+                    "starting_value": starting_val,
+                    "ending_value": ending_val,
+                    "annual_return": annual_return,
+                    "cumulative_return": cumulative_return,
+                    "volatility": volatility,
+                    "probability": probability
+                })
+
+                row_id += 1
 
     return pd.DataFrame(results)
+
+# Needed to create a different transform function due to different columns from live data
+def transform_monte_carlo_data(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Transform and validate Monte Carlo simulation results.
+    Ensures correct types, fills missing values, and sorts by ticker and simulation.
+    """
+    if df.empty:
+        return pd.DataFrame(columns=[
+            'id', 'ticker', 'simulation_id', 'year',
+            'starting_value', 'ending_value', 'annual_return',
+            'cumulative_return', 'volatility', 'probability'
+        ])
+    
+    df = df.copy()
+    
+    # Ensuring correct data types
+    df['id'] = df['id'].astype(int)
+    df['ticker'] = df['ticker'].astype(str).str.upper()
+    df['simulation_id'] = df['simulation_id'].astype(int)
+    df['year'] = df['year'].astype(int)
+    numeric_cols = ['starting_value','ending_value','annual_return','cumulative_return','volatility','probability']
+    df[numeric_cols] = df[numeric_cols].apply(pd.to_numeric, errors='coerce')
+    
+    # Fill any missing values with 0
+    df[numeric_cols] = df[numeric_cols].fillna(0)
+    
+    # Sort by ticker, simulation_id, and year
+    df = df.sort_values(['ticker','simulation_id','year']).reset_index(drop=True)
+    
+    return df
