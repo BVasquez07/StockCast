@@ -68,7 +68,6 @@ def run_monte_carlo(
                     "id": row_id,
                     "simulation_num": sim,
                     "ticker": ticker,
-                    "ticker": sim,
                     "year": year,
                     "starting_value": starting_val,
                     "ending_value": ending_val,
