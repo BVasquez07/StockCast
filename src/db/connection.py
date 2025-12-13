@@ -46,7 +46,8 @@ def psql_connect_and_setup(db_host_addr: str, db_port: str, db_name: str, db_use
             # Data Model: simulation table with year instead of date
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS simulation (
-                    simulation_id SERIAL PRIMARY KEY,
+                    id SERIAL PRIMARY KEY,
+                    simulation_num integer,
                     ticker varchar(10) NOT NULL,
                     year integer NOT NULL,
                     starting_value float,
@@ -58,12 +59,5 @@ def psql_connect_and_setup(db_host_addr: str, db_port: str, db_name: str, db_use
             """)
 
             #lets put insertion query here then we can print it with the code below
-
-            cur.execute("SELECT * from stock_data;")
-            print(cur.fetchall()) # can use this method or iterate over the cursor...
-
-            cur.execute("SELECT * from simulation;")
-            print(cur.fetchall())
-
             conn.commit()
         

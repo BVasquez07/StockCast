@@ -1,6 +1,7 @@
 from src.Extract.main import compile_extracted_data
 from src.Transform.main import transform_extracted_data
-from src.db.insertion import insert_data
+from src.Transform.monte_carlo import run_monte_carlo, transform_monte_carlo_data
+from src.db.insertion import insert_stock_data, insert_sim_data
 from src.db.connection import psql_connect_and_setup
 import pandas as pd
 import psycopg
@@ -51,7 +52,7 @@ def compile_ETL_data(api_1: str='api_1', db_credentials: dict[str]=None, source:
     #more info on the isinstance built-in method can be found at https://docs.python.org/3/library/functions.html#isinstance
     if isinstance(extracted_data, dict):#this checks if extracted_data is a dictionary
         # Check if we have actual data to transform
-        for key, value in extracted_data.items():
+        for _, value in extracted_data.items():
             if isinstance(value, pd.DataFrame):
                 transformed_data = transform_extracted_data(value, source=source)
                 break
@@ -62,8 +63,12 @@ def compile_ETL_data(api_1: str='api_1', db_credentials: dict[str]=None, source:
         transformed_data = transform_extracted_data(extracted_data, source=source)
     else: #otherwise create the DF with the appropriate structure
         transformed_data = pd.DataFrame(columns=['ticker', 'date', 'open', 'high', 'low', 'close', 'adj_close', 'volume'])
-    
+
+    #now that we have the cleaned data we pass it to the monte carlo to run and then store that table as well!
+    monte_carlo_results = run_monte_carlo(df=transformed_data, tickers=tickers, portfolio_value=250000, years=10, num_simulations=10000, seed=None)
+    transformed_monte_carlo_data = transform_monte_carlo_data(monte_carlo_results)
     #assume that at this point the data was extracted and transformed successfully!
+    #itertuples needs to have the exact order for insertion otherwise it will break the code!!!
     try:
         psql_connect_and_setup(
             db_host_addr=db_credentials['host'], 
@@ -72,7 +77,7 @@ def compile_ETL_data(api_1: str='api_1', db_credentials: dict[str]=None, source:
             db_user=db_credentials['user'], 
             db_password=db_credentials['password'], 
             db_timeout=db_credentials['timeout'])
-        insert_data(
+        insert_stock_data( #populate the db with the stock data
             db_host_addr=db_credentials['host'], 
             db_port=db_credentials['port'], 
             db_name=db_credentials['database'], 
@@ -80,6 +85,15 @@ def compile_ETL_data(api_1: str='api_1', db_credentials: dict[str]=None, source:
             db_password=db_credentials['password'], 
             db_timeout=db_credentials['timeout'],
             data=list(transformed_data.itertuples(index=False, name=None)) #https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.itertuples.html, https://stackoverflow.com/questions/9758450/pandas-convert-dataframe-to-array-of-tuples 
+        )    
+        insert_sim_data(#populate the db with the monte sim data
+            db_host_addr=db_credentials['host'], 
+            db_port=db_credentials['port'], 
+            db_name=db_credentials['database'], 
+            db_user=db_credentials['user'], 
+            db_password=db_credentials['password'], 
+            db_timeout=db_credentials['timeout'],
+            data=list(transformed_monte_carlo_data.itertuples(index=False, name=None)) #https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.itertuples.html, https://stackoverflow.com/questions/9758450/pandas-convert-dataframe-to-array-of-tuples 
         )
     except psycopg.IntegrityError as ie:
         print("Data insertion failed due to integrity error (there is probably duplicate data being entered):", ie)
@@ -91,5 +105,6 @@ def compile_ETL_data(api_1: str='api_1', db_credentials: dict[str]=None, source:
     
     return {
         'extracted': extracted_data,
-        'transformed': transformed_data
+        'transformed': transformed_data,
+        'simulated': transformed_monte_carlo_data
     }

@@ -8,12 +8,12 @@ def run_monte_carlo(
     tickers: list[str],
     portfolio_value: float = 250000,
     years: int = 10,
-    num_simulations: int = 1000,
+    num_simulations: int = 10000,
     seed: int = None
 ) -> pd.DataFrame:
     """
     Monte Carlo simulation using pre-cleaned stock data from Transform module.
-    Columns: id, ticker, simulation_id, year, starting_value, ending_value,
+    Columns: id, ticker, simulation_num, year, starting_value, ending_value,
              annual_return, cumulative_return, volatility, probability
     """
     
@@ -66,8 +66,9 @@ def run_monte_carlo(
 
                 results.append({
                     "id": row_id,
+                    "simulation_num": sim,
                     "ticker": ticker,
-                    "simulation_id": sim,
+                    "ticker": sim,
                     "year": year,
                     "starting_value": starting_val,
                     "ending_value": ending_val,
@@ -89,7 +90,7 @@ def transform_monte_carlo_data(df: pd.DataFrame) -> pd.DataFrame:
     """
     if df.empty:
         return pd.DataFrame(columns=[
-            'id', 'ticker', 'simulation_id', 'year',
+            'id', 'simulation_num', 'ticker', 'year',
             'starting_value', 'ending_value', 'annual_return',
             'cumulative_return', 'volatility', 'probability'
         ])
@@ -99,7 +100,7 @@ def transform_monte_carlo_data(df: pd.DataFrame) -> pd.DataFrame:
     # Ensuring correct data types
     df['id'] = df['id'].astype(int)
     df['ticker'] = df['ticker'].astype(str).str.upper()
-    df['simulation_id'] = df['simulation_id'].astype(int)
+    df['simulation_num'] = df['simulation_num'].astype(int)
     df['year'] = df['year'].astype(int)
     numeric_cols = ['starting_value','ending_value','annual_return','cumulative_return','volatility','probability']
     df[numeric_cols] = df[numeric_cols].apply(pd.to_numeric, errors='coerce')
@@ -107,7 +108,7 @@ def transform_monte_carlo_data(df: pd.DataFrame) -> pd.DataFrame:
     # Fill any missing values with 0
     df[numeric_cols] = df[numeric_cols].fillna(0)
     
-    # Sort by ticker, simulation_id, and year
-    df = df.sort_values(['ticker','simulation_id','year']).reset_index(drop=True)
+    # Sort by ticker, simulation_num, and year
+    df = df.sort_values(['ticker','simulation_num','year']).reset_index(drop=True)
     
     return df

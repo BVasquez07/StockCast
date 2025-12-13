@@ -19,19 +19,22 @@ Processing is as follows:
 """
 
 
-def insert_data(db_host_addr: str, db_port: str, db_name: str, db_user: str, db_password: str, db_timeout: int, data: list[dict[str]]) -> None:
+def insert_stock_data(db_host_addr: str, db_port: str, db_name: str, db_user: str, db_password: str, db_timeout: int, data: list[dict[str]]) -> None:
     with psycopg.connect(f"hostaddr={db_host_addr} port={db_port} dbname={db_name} user={db_user} password={db_password} connect_timeout={db_timeout}") as conn:
         with conn.cursor() as cur:
             cur.executemany("""
                 INSERT INTO stock_data (ticker, date, open, high, low, close, adj_close, volume)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
             """, data) #data needs to be a list of tuples [('ticker', 'date', 'open', 'high', 'low', 'close', 'adj_close', 'volume'), (...), ...]
-            #this will print out the data to make sure we actually inserted the proper data AND IS TEMPORARY FOR TESTING PURPOSES
-            cur.execute("SELECT * from stock_data;")
-            print(cur.fetchall()) # can use this method or iterate over the cursor...
-            cur.execute("SELECT * from simulation;")
-            print(cur.fetchall())
+            conn.commit()
 
+def insert_sim_data(db_host_addr: str, db_port: str, db_name: str, db_user: str, db_password: str, db_timeout: int, data: list[dict[str]]) -> None:
+    with psycopg.connect(f"hostaddr={db_host_addr} port={db_port} dbname={db_name} user={db_user} password={db_password} connect_timeout={db_timeout}") as conn:
+        with conn.cursor() as cur:
+            cur.executemany("""
+                INSERT INTO simulation (id, simulation_num, ticker, year, starting_value, ending_value, annual_return, cumulative_return, volatility, probability)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+            """, data)
             conn.commit()
 
 
