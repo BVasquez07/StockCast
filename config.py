@@ -6,7 +6,6 @@ try:
         pass # we don't really care to do anything if the file exists and the file will close automatically due to the with statement
 except OSError:
     with open('.env', 'w') as f:
-        f.write("FINNHUB_API_KEY=\n")
         f.write("PSQL_USERNAME='postgres'\n")
         f.write("PSQL_PASSWORD='0000'\n")
         f.write("PSQL_HOST_ADDR='127.0.0.1'\n")
@@ -16,14 +15,17 @@ except OSError:
 finally:
     print('.env file checked for existence!')
 
-#loading the API_keys from the envorionment variables
+# Load environment variables
 load_dotenv()
 
-ticker_list=['SPY', 'QQQ', 'AGG']
-api_keys = {
-    "finnhub": os.getenv(key="FINNHUB_API_KEY", default="No Key Found"),
-    "yahoo_fin": os.getenv(key="YAHOOFIN_API_KEY", default="No Key Found"),
-}
+# ETFs (Index Funds)
+etf_list = ['SPY', 'QQQ', 'AGG']
+
+# Individual Stocks (Top 10)
+stock_list = ['NVDA', 'MSFT', 'AAPL', 'AMZN', 'GOOGL', 'META', 'LLY', 'AVGO', 'TSLA', 'BRK-B']
+
+# Combined for analysis
+ticker_list = etf_list + stock_list
 db_credentials = {
     "user": os.getenv(key="PSQL_USERNAME", default="No Key Found"),
     "password": os.getenv(key="PSQL_PASSWORD", default="No Key Found"),

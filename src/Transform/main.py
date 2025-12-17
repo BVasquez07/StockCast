@@ -3,7 +3,7 @@ from src.Transform.monte_carlo import run_monte_carlo, transform_monte_carlo_dat
 Transform Module - Process and Clean Stock Data
 
 This module handles:
-1. Standardizing data from different sources (Yahoo Finance, Finnhub)
+1. Standardizing data from Yahoo Finance
 2. Cleaning and validating data
 3. Ensuring all required columns match the data model
 4. Preparing data for database insertion
