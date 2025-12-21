@@ -35,8 +35,8 @@ def compile_ETL_data(api_1: str='api_1', db_credentials: dict[str]=None, source:
     3. Load: (To be implemented) Insert into database
     
     Args:
-        api_1: First API key (typically Finnhub)
-        source: Data source identifier ('yfinance' or 'finnhub')
+        api_1: API key (unused, kept for compatibility)
+        source: Data source identifier ('yfinance')
         tickers: List of stock ticker symbols to fetch data for
         time_period: Time period for which to fetch data (e.g., '5d', '1mo', 'ytd') default is 'ytd'
         

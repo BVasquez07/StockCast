@@ -29,15 +29,15 @@ def psql_connect_and_setup(db_host_addr: str, db_port: str, db_name: str, db_use
             # Data Model: stock_data table with all OHLCV data + adj_close
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS stock_data (
-                    id SERIAL PRIMARY KEY,
+                    id BIGSERIAL PRIMARY KEY,
                     ticker varchar(10) NOT NULL,
                     date date NOT NULL,
-                    open float,
-                    high float,
-                    low float,
-                    close float,
-                    adj_close float,
-                    volume integer,
+                    open NUMERIC(12, 4),
+                    high NUMERIC(12, 4),
+                    low NUMERIC(12, 4),
+                    close NUMERIC(12, 4),
+                    adj_close NUMERIC(12, 4),
+                    volume BIGINT,
                     UNIQUE (ticker, date));
             """)
             
@@ -46,16 +46,16 @@ def psql_connect_and_setup(db_host_addr: str, db_port: str, db_name: str, db_use
             # Data Model: simulation table with year instead of date
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS simulation (
-                    id SERIAL PRIMARY KEY,
+                    id BIGSERIAL PRIMARY KEY,
                     simulation_num integer,
                     ticker varchar(10) NOT NULL,
                     year integer NOT NULL,
-                    starting_value float,
-                    ending_value float,
-                    annual_return float,
-                    cumulative_return float,
-                    volatility float,
-                    probability float);
+                    starting_value NUMERIC(14, 2),
+                    ending_value NUMERIC(14, 2),
+                    annual_return NUMERIC,
+                    cumulative_return NUMERIC,
+                    volatility NUMERIC,
+                    probability NUMERIC(5, 4));
             """)
 
             #lets put insertion query here then we can print it with the code below
